@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -e
+
+PREFIX="> pre-commit [$(basename $0)]\t\t"
+MAVEN_OPTS="-XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Xms768M"
+
+MVN="./mvnw"
+
+[ `which mvnd| wc -l` -eq 1 ] && MVN="mvnd"
+
+echo -e  "$PREFIX sorting poms"
+$MVN sortpom:sort -q
+
+echo -e  "$PREFIX auto-applying spotless changes"
+$MVN  --non-recursive -q spotless:apply
+
+git update-index --again

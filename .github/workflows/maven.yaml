@@ -1,0 +1,58 @@
+# This file was generated using Kotlin DSL (.github/kts/maven.main.kts).
+# If you want to modify the workflow, please change the Kotlin file and regenerate this YAML file.
+# Generated with https://github.com/typesafegithub/github-workflows-kt
+
+name: 'Maven all in one'
+on:
+  pull_request: {}
+  push:
+    branches:
+    - 'main'
+jobs:
+  build:
+    runs-on: 'ubuntu-latest'
+    steps:
+    - id: 'step-0'
+      name: 'Checkout'
+      uses: 'actions/checkout@v7'
+      with:
+        fetch-depth: '0'
+    - id: 'step-1'
+      name: 'Cache - Maven Repository'
+      uses: 'actions/cache@v6'
+      with:
+        path: '~/.m2/repository'
+        key: '${{ runner.os }}-maven-${{ hashFiles(''**/pom.xml'') }}'
+        restore-keys: '${{ runner.os }}-maven-'
+    - id: 'step-2'
+      name: 'Cache - Sonar cache'
+      uses: 'actions/cache@v6'
+      with:
+        path: '~/.sonar/cache'
+        key: '${{ runner.os }}-sonar-${{ hashFiles(''**/pom.xml'') }}'
+        restore-keys: '${{ runner.os }}-sonar-'
+    - id: 'step-3'
+      name: 'JDK 21'
+      uses: 'actions/setup-java@v6'
+      with:
+        java-version: '21'
+        distribution: 'corretto'
+    - id: 'step-4'
+      name: 'Build with Maven, no testing'
+      run: './mvnw -B clean install -DskipTests'
+    - id: 'step-5'
+      name: 'Test - Unit'
+      run: './mvnw -B test'
+    - id: 'step-6'
+      name: 'Sonar upload'
+      env:
+        SONAR_TOKEN: '${{ secrets.SONAR_2026 }}'
+      run: './mvnw -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=factcast -Dsonar.organization=factcast -Dsonar.host.url=https://sonarcloud.io '
+    - id: 'step-7'
+      name: 'Test - Integration'
+      run: './mvnw -B verify -DskipUnitTests'
+    - id: 'step-8'
+      name: 'Codecov upload'
+      uses: 'codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de'
+      with:
+        token: '${{ secrets.CODECOV_TOKEN }}'
