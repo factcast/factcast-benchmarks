@@ -1,8 +1,10 @@
 import copy
 import csv
+import io
 import json
 from pathlib import Path
 import shutil
+import tarfile
 import tempfile
 import unittest
 from unittest import mock
@@ -164,10 +166,10 @@ class BenchmarkToolsTest(unittest.TestCase):
         (working / 'new.java').write_text('new source')
         (archive / 'modified.java').write_text('committed content')
         (archive / 'deleted.java').write_text('deleted content')
-        with mock.patch.object(run, 'ROOT', working), mock.patch.object(
-                run, 'capture', side_effect=['modified.java\0deleted.java\0', 'new.java\0',
-                                             'working-tree diff', 'issue5083']):
-            run.snapshot_current(archive, self.directory)
+        with mock.patch.object(run, 'capture', side_effect=['modified.java\0deleted.java\0',
+                                                            'new.java\0', 'working-tree diff', 'issue5083']) as capture:
+            run.snapshot_current(archive, self.directory, working)
+        self.assertTrue(all(call.kwargs['cwd'] == working for call in capture.call_args_list))
         self.assertEqual((archive / 'modified.java').read_text(), 'working tree change')
         self.assertEqual((archive / 'new.java').read_text(), 'new source')
         self.assertFalse((archive / 'deleted.java').exists())
@@ -175,6 +177,34 @@ class BenchmarkToolsTest(unittest.TestCase):
         self.assertEqual(snapshot['branch'], 'issue5083')
         self.assertEqual(len(snapshot['changes']), 3)
         self.assertTrue((self.directory / 'current-working-tree.patch').exists())
+
+    def test_prepare_release_copies_benchmark_sources_into_factcast_archive(self):
+        factcast_root = self.directory / 'factcast'
+        factcast_root.mkdir()
+        destination = self.directory / 'release'
+
+        def archive(command, cwd, stdout, check):
+            self.assertEqual(cwd, factcast_root)
+            with tarfile.open(fileobj=stdout, mode='w') as stream:
+                content = b'<project/>'
+                info = tarfile.TarInfo('pom.xml')
+                info.size = len(content)
+                stream.addfile(info, io.BytesIO(content))
+
+        def execute(command, log):
+            self.assertEqual(command[0], './mvnw')
+            if 'org.apache.maven.plugins:maven-dependency-plugin:3.11.0:build-classpath' in command:
+                (self.directory / 'classpath-0.12.5.txt').write_text('dependency.jar')
+
+        with mock.patch.object(run, 'capture', return_value='release-commit') as capture, mock.patch.object(
+                run.subprocess, 'run', side_effect=archive), mock.patch.object(
+                run, 'execute', side_effect=execute):
+            commit, classpath = run.prepare_release('0.12.5', destination, self.directory, factcast_root)
+
+        self.assertEqual(capture.call_args.kwargs['cwd'], factcast_root)
+        self.assertEqual(commit, 'release-commit')
+        self.assertTrue((destination / run.TARGET_SOURCES / 'ConcurrentUnconditionalPublishBenchmark.java').is_file())
+        self.assertIn('dependency.jar', classpath)
 
     def test_verifies_and_labels_disabled_concurrent_batching(self):
         self.manifest['settings']['publishBatching'] = False

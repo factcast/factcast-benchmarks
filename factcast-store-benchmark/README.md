@@ -16,7 +16,7 @@ required. Run the tests from the repository root:
 ./mvnw -pl factcast-store-benchmark test
 ```
 
-Use `-DskipUnitTests=true` or `-DskipTests` to skip the Python tests.
-Both flags also skip Python environment setup and dependency installation.
+Use `-DskipTests` to skip the Python tests, environment setup, and dependency
+installation.
 Use `-Dbenchmark.python=/path/to/python` to select the Python interpreter and
 `-Dbenchmark.venv=/tmp/agents/custom-benchmark-venv` to change the environment path.

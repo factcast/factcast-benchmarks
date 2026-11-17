@@ -18,10 +18,11 @@ and **two 60-second measurement iterations**. One complete pass takes about
 
 ## Run
 
-Requirements: Linux, Java 21, the repository's `./mvnw` wrapper, Git, Python 3.12+,
-Docker access, and dependency access. Both release tags must exist locally. Run on an
-otherwise quiet machine with sufficient disk space for growing PostgreSQL data and
-archived builds.
+Requirements: Linux, Java 21, this repository's `./mvnw` wrapper, Git, Python 3.12+,
+Docker access, dependency access, and a local Factcast checkout containing both
+release tags. By default, the runner uses a sibling `../factcast` checkout; pass
+`--factcast-repo /path/to/factcast` if yours is elsewhere. Run on an otherwise quiet
+machine with sufficient disk space for growing PostgreSQL data and archived builds.
 
 From the repository root:
 
@@ -87,8 +88,8 @@ To compare the synchronous store with concurrent publication batching disabled:
 The runner verifies `factcast.store.publish-batch.enabled=false` in the effective
 store configuration and records it in the manifest and case metadata.
 
-Use `--versions current` to benchmark an isolated snapshot of the current branch,
-including uncommitted changes and non-ignored new files:
+Use `--versions current` to benchmark an isolated snapshot of the Factcast checkout's
+current branch, including uncommitted changes and non-ignored new files:
 
 ```bash
 /tmp/agents/factcast-publish-venv/bin/python -B factcast-store-benchmark/concurrent-publish/run.py \
@@ -102,7 +103,8 @@ and the expanded source archive retain the exact working changes used for the bu
 ## Isolation and measurement
 
 - The runner archives the exact release tags into a unique directory under
-  `/tmp/agents` and copies only the shared benchmark sources into those archives.
+  `/tmp/agents` from the Factcast checkout and copies the shared Java benchmark
+  sources from this repository into those archives.
   It builds each release using `./mvnw` and the release's own dependencies.
   Maven runs from the original Git working directory with an explicit archived POM
   and standard single-threaded builder, supporting wrappers that require a Git checkout.
@@ -174,7 +176,7 @@ Maven creates an isolated virtual environment under `/tmp/agents` and installs
 to select the Python interpreter used to create that environment.
 Expected argument-validation errors are buffered and shown only if a test fails.
 
-`BenchmarkFactsTest` also verifies unique event IDs across 256 publishers and both
-batch sizes. It is a normal unit test in `factcast-store`; run it through
-`./mvnw` with the module's usual reactor dependencies available. The benchmark
-itself has no JUnit test annotation and is never started by a normal test run.
+`BenchmarkFactsTest` verifies unique event IDs across 256 publishers and both
+batch sizes. The runner copies it into each archived `factcast-store` test source
+tree, although its release builds skip unit tests. The benchmark itself has no
+JUnit test annotation and is never started by a normal test run.
