@@ -17,8 +17,7 @@
     <maven.deploy.skip>true</maven.deploy.skip>
     <benchmark.python>python3</benchmark.python>
     <benchmark.venv>/tmp/agents/factcast-store-benchmark-venv</benchmark.venv>
-    <!-- execution should be manual only -->
-    <skipTests>true</skipTests>
+    <skipTests>false</skipTests>
   </properties>
   <build>
     <plugins>

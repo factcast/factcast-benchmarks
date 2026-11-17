@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Build isolated release tags and compare their unconditional FactStore publication throughput."""
 
 import argparse
@@ -17,7 +18,8 @@ sys.dont_write_bytecode = True
 from report import BENCHMARK, BATCHING_VERSIONS, SUPPORTED_VERSIONS, VERSIONS, write_report
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCES = Path('factcast-store/src/test/java/org/factcast/store/benchmark')
+SOURCES = Path('factcast-store-benchmark/src/test/java/org/factcast/store/benchmark')
+TARGET_SOURCES = Path('factcast-store/src/test/java/org/factcast/store/benchmark')
 
 
 def positive(value):
@@ -31,6 +33,8 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--versions', nargs='+', choices=SUPPORTED_VERSIONS, default=VERSIONS,
                         help='release tags or current working tree in chart order; the first is the baseline')
+    parser.add_argument('--factcast-repo', type=Path, default=ROOT.parent / 'factcast',
+                        help='Factcast checkout containing the release tags (default: sibling factcast)')
     parser.add_argument('--publishers', type=positive, nargs='+', default=[256])
     parser.add_argument('--batch-sizes', type=positive, choices=[1], nargs='+', default=[1],
                         help='only single-event publications are supported')
@@ -85,14 +89,14 @@ def execute(command, log, cwd=ROOT, timeout=1800):
         raise RuntimeError(f'Command failed ({code}); inspect {log}')
 
 
-def snapshot_current(destination, output):
-    changed = capture(['git', 'diff', '--name-only', '-z', 'HEAD']).split('\0')
-    untracked = capture(['git', 'ls-files', '--others', '--exclude-standard', '-z']).split('\0')
-    patch = capture(['git', 'diff', '--binary', 'HEAD'])
-    snapshot = {'branch': capture(['git', 'branch', '--show-current']), 'changes': []}
+def snapshot_current(destination, output, factcast_root):
+    changed = capture(['git', 'diff', '--name-only', '-z', 'HEAD'], cwd=factcast_root).split('\0')
+    untracked = capture(['git', 'ls-files', '--others', '--exclude-standard', '-z'], cwd=factcast_root).split('\0')
+    patch = capture(['git', 'diff', '--binary', 'HEAD'], cwd=factcast_root)
+    snapshot = {'branch': capture(['git', 'branch', '--show-current'], cwd=factcast_root), 'changes': []}
     # Overlay the working files so uncommitted source changes are part of the measured build.
     for name in sorted(set(changed + untracked) - {''}):
-        source = ROOT / name
+        source = factcast_root / name
         target = destination / name
         if not target.resolve().is_relative_to(destination.resolve()):
             raise ValueError(f'Snapshot path escapes source archive: {name}')
@@ -108,26 +112,26 @@ def snapshot_current(destination, output):
     (output / 'source-current.json').write_text(json.dumps(snapshot, indent=2) + '\n')
 
 
-def prepare_release(version, destination, output):
+def prepare_release(version, destination, output, factcast_root):
     reference = 'HEAD' if version == 'current' else version
-    commit = capture(['git', 'rev-parse', f'{reference}^{{commit}}'])
+    commit = capture(['git', 'rev-parse', f'{reference}^{{commit}}'], cwd=factcast_root)
     archive = output / f'{version}.tar'
     with archive.open('wb') as stream:
-        subprocess.run(['git', 'archive', '--format=tar', commit], cwd=ROOT, stdout=stream, check=True)
+        subprocess.run(['git', 'archive', '--format=tar', commit], cwd=factcast_root, stdout=stream, check=True)
     destination.mkdir()
     with tarfile.open(archive) as stream:
         stream.extractall(destination, filter='data')
     archive.unlink()
     if version == 'current':
-        snapshot_current(destination, output)
-    shutil.copytree(ROOT / SOURCES, destination / SOURCES, dirs_exist_ok=True)
+        snapshot_current(destination, output, factcast_root)
+    shutil.copytree(ROOT / SOURCES, destination / TARGET_SOURCES, dirs_exist_ok=True)
     # Maven does not include imported BOMs with -am; install them explicitly for fresh snapshots.
     projects = 'factcast-store,factcast-bom,factcast-internal-dep,factcast-internal-dep-boot'
-    execute(['mvn-lite', '--builder', 'singlethreaded', '-P=-not-central', '-f', str(destination / 'pom.xml'), '-pl', projects, '-am', 'install', '-DskipUnitTests=true',
+    execute(['./mvnw', '--builder', 'singlethreaded', '-P=-not-central', '-f', str(destination / 'pom.xml'), '-pl', projects, '-am', 'install', '-DskipUnitTests=true',
              '-DskipTests', '-DskipITs', '-Djacoco.skip=true', '-Dmaven.javadoc.skip=true'],
             output / f'build-{version}.log')
     classpath = output / f'classpath-{version}.txt'
-    execute(['mvn-lite', '--builder', 'singlethreaded', '-f', str(destination / 'factcast-store/pom.xml'),
+    execute(['./mvnw', '--builder', 'singlethreaded', '-f', str(destination / 'factcast-store/pom.xml'),
              'org.apache.maven.plugins:maven-dependency-plugin:3.11.0:build-classpath',
              '-DincludeScope=test', f'-Dmdep.outputFile={classpath}'],
             output / f'classpath-{version}.log')
@@ -138,9 +142,16 @@ def prepare_release(version, destination, output):
 
 def main(argv=None):
     args = parse_args(argv)
-    for command in ['git', 'java', 'docker', 'mvn-lite']:
+    factcast_root = args.factcast_repo.resolve()
+    if not (factcast_root / 'factcast-store/pom.xml').is_file():
+        raise RuntimeError(f'Factcast checkout is missing factcast-store/pom.xml: {factcast_root}')
+    if not (ROOT / SOURCES).is_dir():
+        raise RuntimeError(f'Benchmark sources are missing: {ROOT / SOURCES}')
+    for command in ['git', 'java', 'docker']:
         if not shutil.which(command):
             raise RuntimeError(f'Required executable is missing: {command}')
+    if not (ROOT / 'mvnw').is_file() or not os.access(ROOT / 'mvnw', os.X_OK):
+        raise RuntimeError(f'Required Maven wrapper is missing or not executable: {ROOT / "mvnw"}')
     # Fail before builds and measurements if chart rendering cannot be completed.
     os.environ.setdefault('MPLCONFIGDIR', '/tmp/agents/factcast-publish-matplotlib')
     import matplotlib
@@ -179,7 +190,7 @@ def main(argv=None):
     save()
     classpaths = {}
     for version in args.versions:
-        commit, classpaths[version] = prepare_release(version, output / f'source-{version}', output)
+        commit, classpaths[version] = prepare_release(version, output / f'source-{version}', output, factcast_root)
         manifest['versions'][version] = commit
         if version == 'current':
             manifest['sourceDetails'] = {'current': json.loads((output / 'source-current.json').read_text())}
