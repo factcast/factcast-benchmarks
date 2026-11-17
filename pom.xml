@@ -96,8 +96,6 @@
     <rewrite-java.version>8.90.4</rewrite-java.version>
     <skipUnitTests>false</skipUnitTests>
     <postgres.version>15</postgres.version>
-    <sonar.exclusions>**/src/test/java/**/*.java</sonar.exclusions>
-    <sonar.test.exclusions>**/src/test/java/**/*.java</sonar.test.exclusions>
   </properties>
   <dependencyManagement>
     <dependencies>

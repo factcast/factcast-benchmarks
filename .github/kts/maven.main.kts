@@ -61,18 +61,6 @@ workflow(
             ),
         )
         uses(
-            name = "Cache - Sonar cache",
-            action = Cache(
-                path = listOf(
-                    "~/.sonar/cache",
-                ),
-                key = "${'$'}{{ runner.os }}-sonar-${'$'}{{ hashFiles('**/pom.xml') }}",
-                restoreKeys = listOf(
-                    "${'$'}{{ runner.os }}-sonar-",
-                ),
-            ),
-        )
-        uses(
             name = "JDK 21",
             action = SetupJava(
                 distribution = SetupJava.Distribution.Corretto,
@@ -91,21 +79,8 @@ workflow(
         )
 
         run(
-            name = "Sonar upload",
-            env = mapOf(SONAR_TOKEN to expr { SONAR_2026 }),
-            command = "./mvnw -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=factcast -Dsonar.organization=factcast -Dsonar.host.url=https://sonarcloud.io "
-        )
-
-        run(
             name = "Test - Integration",
             command = "./mvnw -B verify -DskipUnitTests",
-        )
-        uses(
-            name = "Codecov upload",
-            action = CodecovAction(
-                _customVersion = "671740ac38dd9b0130fbe1cec585b89eea48d3de",
-                token = "${'$'}{{ secrets.CODECOV_TOKEN }}"
-            ),
         )
     }
 
