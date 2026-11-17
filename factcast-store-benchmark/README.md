@@ -13,7 +13,7 @@ the declared Python requirements. Python 3.12+ with `venv` and dependency access
 required. Run the tests from the repository root:
 
 ```bash
-mvn-lite -pl factcast-store-benchmark test
+./mvnw -pl factcast-store-benchmark test
 ```
 
 Use `-DskipUnitTests=true` or `-DskipTests` to skip the Python tests.

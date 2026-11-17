@@ -18,9 +18,10 @@ and **two 60-second measurement iterations**. One complete pass takes about
 
 ## Run
 
-Requirements: Linux, Java 21, `mvn-lite`, Git, Python 3.12+, Docker access, and
-dependency access. Both release tags must exist locally. Run on an otherwise quiet
-machine with sufficient disk space for growing PostgreSQL data and archived builds.
+Requirements: Linux, Java 21, the repository's `./mvnw` wrapper, Git, Python 3.12+,
+Docker access, and dependency access. Both release tags must exist locally. Run on an
+otherwise quiet machine with sufficient disk space for growing PostgreSQL data and
+archived builds.
 
 From the repository root:
 
@@ -102,7 +103,7 @@ and the expanded source archive retain the exact working changes used for the bu
 
 - The runner archives the exact release tags into a unique directory under
   `/tmp/agents` and copies only the shared benchmark sources into those archives.
-  It builds each release using `mvn-lite` and the release's own dependencies.
+  It builds each release using `./mvnw` and the release's own dependencies.
   Maven runs from the original Git working directory with an explicit archived POM
   and standard single-threaded builder, supporting wrappers that require a Git checkout.
   The unrelated `not-central` modules are excluded from the archived reactor build.
@@ -165,7 +166,7 @@ table and charts from an existing successful comparison:
 Run the report and runner tests through Maven:
 
 ```bash
-mvn-lite -pl factcast-store-benchmark test
+./mvnw -pl factcast-store-benchmark test
 ```
 
 Maven creates an isolated virtual environment under `/tmp/agents` and installs
@@ -175,5 +176,5 @@ Expected argument-validation errors are buffered and shown only if a test fails.
 
 `BenchmarkFactsTest` also verifies unique event IDs across 256 publishers and both
 batch sizes. It is a normal unit test in `factcast-store`; run it through
-`mvn-lite` with the module's usual reactor dependencies available. The benchmark
+`./mvnw` with the module's usual reactor dependencies available. The benchmark
 itself has no JUnit test annotation and is never started by a normal test run.

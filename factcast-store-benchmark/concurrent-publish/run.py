@@ -123,11 +123,11 @@ def prepare_release(version, destination, output):
     shutil.copytree(ROOT / SOURCES, destination / SOURCES, dirs_exist_ok=True)
     # Maven does not include imported BOMs with -am; install them explicitly for fresh snapshots.
     projects = 'factcast-store,factcast-bom,factcast-internal-dep,factcast-internal-dep-boot'
-    execute(['mvn-lite', '--builder', 'singlethreaded', '-P=-not-central', '-f', str(destination / 'pom.xml'), '-pl', projects, '-am', 'install', '-DskipUnitTests=true',
+    execute(['./mvnw', '--builder', 'singlethreaded', '-P=-not-central', '-f', str(destination / 'pom.xml'), '-pl', projects, '-am', 'install', '-DskipUnitTests=true',
              '-DskipTests', '-DskipITs', '-Djacoco.skip=true', '-Dmaven.javadoc.skip=true'],
             output / f'build-{version}.log')
     classpath = output / f'classpath-{version}.txt'
-    execute(['mvn-lite', '--builder', 'singlethreaded', '-f', str(destination / 'factcast-store/pom.xml'),
+    execute(['./mvnw', '--builder', 'singlethreaded', '-f', str(destination / 'factcast-store/pom.xml'),
              'org.apache.maven.plugins:maven-dependency-plugin:3.11.0:build-classpath',
              '-DincludeScope=test', f'-Dmdep.outputFile={classpath}'],
             output / f'classpath-{version}.log')
@@ -138,9 +138,11 @@ def prepare_release(version, destination, output):
 
 def main(argv=None):
     args = parse_args(argv)
-    for command in ['git', 'java', 'docker', 'mvn-lite']:
+    for command in ['git', 'java', 'docker']:
         if not shutil.which(command):
             raise RuntimeError(f'Required executable is missing: {command}')
+    if not (ROOT / 'mvnw').is_file() or not os.access(ROOT / 'mvnw', os.X_OK):
+        raise RuntimeError(f'Required Maven wrapper is missing or not executable: {ROOT / "mvnw"}')
     # Fail before builds and measurements if chart rendering cannot be completed.
     os.environ.setdefault('MPLCONFIGDIR', '/tmp/agents/factcast-publish-matplotlib')
     import matplotlib
